@@ -1,0 +1,456 @@
+openapi: 3.0.3
+info:
+  title: Modul Antrean Online RSU SERENAPITA
+  version: 1.0.0
+  description: |
+    API untuk integrasi SIMRS Dhealth dengan Modul Antrean Online RSU SERENAPITA.
+
+    ## Ringkasan alur
+    **SIMRS Dhealth → modul → BPJS**
+    1. Saat dokter menyelesaikan pelayanan poli, SIMRS Dhealth mengirim jenis resep pasien ke modul
+       (`POST /jkn/internal/resep`). Data ini dibutuhkan agar pasien dapat mengambil antrean farmasi.
+    2. Modul mengelola antrean farmasi, baik yang diambil di rumah sakit maupun lewat Mobile JKN,
+       dan mengirim data antrean farmasi ke BPJS.
+    3. SIMRS Dhealth dapat membaca data antrean farmasi (`GET /jkn/internal/antrean-farmasi`) serta status
+       poli fingerprint dan peserta fingerprint untuk layar pendaftaran.
+
+    ## Autentikasi
+    - Setiap request wajib menyertakan header `x-api-key` berisi kunci API dari rumah sakit.
+    - Request hanya diterima dari alamat IP yang didaftarkan rumah sakit.
+    - Jumlah request dibatasi per alamat IP per menit. Jika batas terlampaui, jawabannya HTTP 429.
+
+    ## Format jawaban
+    Semua endpoint menjawab dalam format berikut, dengan pesan berbahasa Indonesia.
+    HTTP status sama dengan `metadata.code`.
+
+    ```json
+    {"response": {}, "metadata": {"message": "Ok", "code": 200}}
+    ```
+
+    | code | Arti |
+    |---|---|
+    | 200 | Berhasil. Data ada di `response`. |
+    | 201 | Ditolak karena data tidak valid atau tidak memenuhi aturan. Alasannya ada di `metadata.message`. |
+    | 401 | Kunci API tidak dikirim atau tidak valid. |
+
+    Jawaban lain yang mungkin muncul: 403 (alamat IP tidak terdaftar) dan 429 (batas request terlampaui).
+
+    ## Kontak
+    Penanggung jawab integrasi: [isi kontak RS]
+servers:
+  - url: /
+    description: Server modul (alamat LAN RS)
+tags:
+  - name: API Internal untuk Dhealth
+    description: Dipanggil Dhealth. Wajib header `x-api-key`; IP pemanggil dapat dibatasi; rate limit per IP.
+  - name: WSRS untuk BPJS
+    description: Dipanggil BPJS / Mobile JKN (item UAT 1 dan 2). Dicantumkan sebagai referensi; kontraknya mengikuti katalog BPJS.
+
+paths:
+  /jkn/internal/resep:
+    post:
+      tags: [API Internal untuk Dhealth]
+      summary: Kirim data resep
+      description: |
+        **Kapan dipanggil:** saat dokter menyelesaikan pelayanan poli, bersamaan dengan Update Waktu task ID 5 ke BPJS.
+        Kiriman ulang dengan kode booking yang sama memperbarui data (dan membatalkan penanda batal sebelumnya).
+        Tanpa data resep, antrean farmasi kode booking tersebut ditolak dengan pesan
+        "Jenis resep belum tersedia, silakan hubungi farmasi".
+      operationId: kirimResep
+      security: [{ApiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ResepInput'}
+            example:
+              kodebooking: 20261107INT001
+              jenisresep: Racikan
+              norekammedis: '000101'
+              namapasien: BUDI SANTOSO
+              nomorkartu: '0001234567890'
+              kodepoli: INT
+              tanggal: '2026-11-07'
+      responses:
+        '200':
+          description: Resep tersimpan
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JawabanResep'}
+              example:
+                response: {kodebooking: 20261107INT001, jenisresep: Racikan, norekammedis: '000101', namapasien: BUDI SANTOSO, nomorkartu: '0001234567890', kodepoli: INT, tanggal: '2026-11-07', sumber: vendor, dibatalkan: false}
+                metadata: {message: Ok, code: 200}
+        '201':
+          description: Gagal validasi
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Gagal'}
+              examples:
+                kodebookingKosong: {value: {metadata: {message: Kodebooking wajib diisi., code: 201}}}
+                jenisresepSalah: {value: {metadata: {message: 'jenisresep harus Racikan, Non Racikan, atau Tidak ada', code: 201}}}
+                tanggalSalah: {value: {metadata: {message: Tanggal harus berformat Y-m-d., code: 201}}}
+        '401': {$ref: '#/components/responses/KunciApiSalah'}
+        '403': {$ref: '#/components/responses/IpTidakDiizinkan'}
+        '429': {$ref: '#/components/responses/TerlaluBanyak'}
+
+  /jkn/internal/resep/{kodebooking}/batal:
+    post:
+      tags: [API Internal untuk Dhealth]
+      summary: Batalkan resep
+      description: |
+        **Kapan dipanggil:** jika resep dibatalkan di Dhealth. Jika antrean farmasi hari ini sudah dibuat dan
+        masih **menunggu**, statusnya diubah menjadi **batal**. Antrean yang sudah dipanggil atau selesai tidak diubah.
+        Setelah dibatalkan, pengambilan antrean baru ditolak "Pasien tidak memiliki resep, antrean farmasi tidak dapat diambil".
+      operationId: batalkanResep
+      security: [{ApiKey: []}]
+      parameters:
+        - {name: kodebooking, in: path, required: true, schema: {type: string}, example: 20261107INT001}
+      responses:
+        '200':
+          description: Resep dibatalkan (antrean farmasi yang menunggu ikut dibatalkan)
+          content:
+            application/json:
+              example:
+                response:
+                  resep: {kodebooking: 20261107INT001, jenisresep: Racikan, norekammedis: '000101', namapasien: BUDI SANTOSO, nomorkartu: '0001234567890', kodepoli: INT, tanggal: '2026-11-07', sumber: vendor, dibatalkan: true}
+                  antrean_farmasi: {nomorantrean: 3, status: batal}
+                metadata: {message: Ok, code: 200}
+        '201':
+          description: Resep tidak ditemukan, atau antrean farmasi sudah berjalan
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Gagal'}
+              examples:
+                tidakDitemukan: {value: {metadata: {message: Resep dengan kode booking tersebut tidak ditemukan, code: 201}}}
+                sudahBerjalan: {value: {metadata: {message: 'Resep dibatalkan, tetapi antrean farmasi nomor 3 sudah berstatus dipanggil sehingga tidak diubah', code: 201}}}
+        '401': {$ref: '#/components/responses/KunciApiSalah'}
+        '403': {$ref: '#/components/responses/IpTidakDiizinkan'}
+        '429': {$ref: '#/components/responses/TerlaluBanyak'}
+
+  /jkn/internal/poli-fingerprint:
+    get:
+      tags: [API Internal untuk Dhealth]
+      summary: Daftar poli fingerprint
+      description: Kode poli yang wajib fingerprint menurut WSBPJS Referensi Poli Fingerprint. Diambil dari cache dan diperbarui dari BPJS bila kosong atau kedaluwarsa.
+      operationId: daftarPoliFingerprint
+      security: [{ApiKey: []}]
+      responses:
+        '200':
+          description: Daftar kode poli fingerprint
+          content:
+            application/json:
+              example: {response: {list: [INT, JAN, BED], jumlah: 3}, metadata: {message: Ok, code: 200}}
+        '201':
+          description: Referensi BPJS gagal dibaca
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Gagal'}
+              example: {metadata: {message: 'Referensi Poli Fingerprint dari BPJS gagal dibaca, coba lagi', code: 201}}
+        '401': {$ref: '#/components/responses/KunciApiSalah'}
+        '403': {$ref: '#/components/responses/IpTidakDiizinkan'}
+        '429': {$ref: '#/components/responses/TerlaluBanyak'}
+
+  /jkn/internal/poli-fingerprint/{kodepoli}:
+    get:
+      tags: [API Internal untuk Dhealth]
+      summary: Status fingerprint satu poli
+      description: |
+        **Kapan dipanggil:** di layar pendaftaran Dhealth saat poli tujuan dipilih, untuk menampilkan pesan
+        validasi sidik jari. Jika referensi BPJS gagal dibaca, jawabannya code 201 (bukan `wajib_fingerprint: false`).
+      operationId: statusPoliFingerprint
+      security: [{ApiKey: []}]
+      parameters:
+        - {name: kodepoli, in: path, required: true, schema: {type: string}, example: INT}
+      responses:
+        '200':
+          description: Status fingerprint poli
+          content:
+            application/json:
+              examples:
+                wajib: {value: {response: {kodepoli: INT, wajib_fingerprint: true, pesan: 'Poli yang Anda tuju mewajibkan validasi sidik jari (fingerprint). Silakan lakukan perekaman/validasi sidik jari di loket pendaftaran sebelum dilayani.'}, metadata: {message: Ok, code: 200}}}
+                tidakWajib: {value: {response: {kodepoli: ANA, wajib_fingerprint: false, pesan: Poli ini tidak mewajibkan validasi sidik jari (fingerprint).}, metadata: {message: Ok, code: 200}}}
+        '201':
+          description: Referensi BPJS gagal dibaca
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Gagal'}
+              example: {metadata: {message: 'Referensi Poli Fingerprint dari BPJS gagal dibaca, status fingerprint poli tidak dapat dipastikan', code: 201}}
+        '401': {$ref: '#/components/responses/KunciApiSalah'}
+        '403': {$ref: '#/components/responses/IpTidakDiizinkan'}
+        '429': {$ref: '#/components/responses/TerlaluBanyak'}
+
+  /jkn/internal/peserta-fingerprint:
+    get:
+      tags: [API Internal untuk Dhealth]
+      summary: Referensi pasien fingerprint
+      description: Meneruskan WSBPJS Referensi Pasien Fingerprint. Jawaban BPJS (sudah didekripsi) dikembalikan di `metadata_bpjs` dan `peserta`, termasuk code 0 "Peserta tidak terdaftar".
+      operationId: pesertaFingerprint
+      security: [{ApiKey: []}]
+      parameters:
+        - {name: jenis, in: query, required: true, schema: {type: string, enum: [noka, nik]}, example: noka}
+        - {name: nomor, in: query, required: true, description: 'Nomor kartu 13 digit atau NIK 16 digit', schema: {type: string}, example: '0001234567890'}
+      responses:
+        '200':
+          description: BPJS menjawab (hasil sudah didekripsi)
+          content:
+            application/json:
+              examples:
+                terdaftar: {value: {response: {metadata_bpjs: {message: Ok, code: 200}, peserta: {nomorkartu: '0001234567890', nik: '3212345678987654', tgllahir: 631152000000, daftarfp: 1}}, metadata: {message: Ok, code: 200}}}
+                tidakTerdaftar: {value: {response: {metadata_bpjs: {message: Peserta tidak terdaftar, code: 0}, peserta: null}, metadata: {message: Ok, code: 200}}}
+        '201':
+          description: Gagal validasi atau BPJS tidak dapat dihubungi
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Gagal'}
+              examples:
+                jenisSalah: {value: {metadata: {message: jenis harus noka atau nik, code: 201}}}
+                nomorSalah: {value: {metadata: {message: Nomor kartu harus 13 digit angka, code: 201}}}
+                bpjsGagal: {value: {metadata: {message: 'Referensi Pasien Fingerprint dari BPJS tidak dapat dibaca: cURL error 28: Operation timed out', code: 201}}}
+        '401': {$ref: '#/components/responses/KunciApiSalah'}
+        '403': {$ref: '#/components/responses/IpTidakDiizinkan'}
+        '429': {$ref: '#/components/responses/TerlaluBanyak'}
+
+  /jkn/internal/antrean-farmasi:
+    get:
+      tags: [API Internal untuk Dhealth]
+      summary: Daftar antrean farmasi
+      description: Antrean farmasi pada satu tanggal (default hari ini, Asia/Jakarta) beserta ringkasan yang sama dengan WSRS Status Antrean Farmasi.
+      operationId: daftarAntreanFarmasi
+      security: [{ApiKey: []}]
+      parameters:
+        - {name: tanggal, in: query, required: false, schema: {type: string, format: date}, example: '2026-11-07'}
+      responses:
+        '200':
+          description: Daftar antrean farmasi
+          content:
+            application/json:
+              example:
+                response:
+                  tanggal: '2026-11-07'
+                  ringkasan: {totalantrean: 2, sisaantrean: 1, antreanpanggil: 1, selesai: 0, batal: 0}
+                  list:
+                    - {nomorantrean: 1, namapasien: BUDI SANTOSO, norekammedis: '000101', kodebooking: 20261107INT001, jenisresep: Racikan, sumber: mobile_jkn, status: dipanggil, waktu: {ambil: '09:12', dipanggil: '09:30', selesai: null, batal: null}, terkirim_bpjs: null}
+                    - {nomorantrean: 2, namapasien: null, norekammedis: '000102', kodebooking: 20261107INT002, jenisresep: Non Racikan, sumber: onsite, status: menunggu, waktu: {ambil: '09:20', dipanggil: null, selesai: null, batal: null}, terkirim_bpjs: true}
+                metadata: {message: Ok, code: 200}
+        '201':
+          description: Format tanggal salah
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Gagal'}
+              example: {metadata: {message: Tanggal harus berformat Y-m-d., code: 201}}
+        '401': {$ref: '#/components/responses/KunciApiSalah'}
+        '403': {$ref: '#/components/responses/IpTidakDiizinkan'}
+        '429': {$ref: '#/components/responses/TerlaluBanyak'}
+
+  /jkn/internal/antrean-farmasi/{kodebooking}:
+    get:
+      tags: [API Internal untuk Dhealth]
+      summary: Detail satu antrean farmasi
+      operationId: detailAntreanFarmasi
+      security: [{ApiKey: []}]
+      parameters:
+        - {name: kodebooking, in: path, required: true, schema: {type: string}, example: 20261107INT001}
+        - {name: tanggal, in: query, required: false, description: Default hari ini, schema: {type: string, format: date}}
+      responses:
+        '200':
+          description: Detail antrean farmasi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response: {$ref: '#/components/schemas/AntreanFarmasi'}
+                  metadata: {$ref: '#/components/schemas/Metadata'}
+              example:
+                response: {nomorantrean: 1, namapasien: BUDI SANTOSO, norekammedis: '000101', kodebooking: 20261107INT001, jenisresep: Racikan, sumber: mobile_jkn, status: selesai, waktu: {ambil: '09:12', dipanggil: '09:30', selesai: '09:41', batal: null}, terkirim_bpjs: null}
+                metadata: {message: Ok, code: 200}
+        '201':
+          description: Tidak ditemukan
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Gagal'}
+              example: {metadata: {message: Antrean farmasi untuk kode booking tersebut tidak ditemukan, code: 201}}
+        '401': {$ref: '#/components/responses/KunciApiSalah'}
+        '403': {$ref: '#/components/responses/IpTidakDiizinkan'}
+        '429': {$ref: '#/components/responses/TerlaluBanyak'}
+
+  /jkn/ambil-antrean-farmasi:
+    post:
+      tags: [WSRS untuk BPJS]
+      summary: WSRS Service Add Antrean Farmasi
+      description: |
+        Dipanggil BPJS saat peserta mengambil antrean farmasi di Mobile JKN (item UAT 1). Antrean yang dibuat
+        bertanda "Mobile JKN" dan tidak dikirim lagi lewat Tambah Antrean Farmasi. Pada mode token vendor, token
+        diperiksa ke service vendor (lihat bagian info). HTTP status sama dengan `metadata.code`.
+      operationId: wsrsAmbilAntreanFarmasi
+      security: [{WsrsToken: [], WsrsUsername: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kodebooking]
+              properties:
+                kodebooking: {type: string, example: 20261107INT001}
+      responses:
+        '200':
+          description: Nomor antrean farmasi diberikan
+          content:
+            application/json:
+              example: {response: {jenisresep: Racikan, nomorantrean: 1, keterangan: ''}, metadata: {message: Ok, code: 200}}
+        '201':
+          description: Ditolak (aturan antrean farmasi atau token)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Gagal'}
+              examples:
+                kodebookingKosong: {value: {metadata: {message: Kode Booking tidak boleh kosong, code: 201}}}
+                tidakDitemukan: {value: {metadata: {message: Kode Booking tidak ditemukan, code: 201}}}
+                dibatalkan: {value: {metadata: {message: Antrean dengan kode booking tersebut sudah dibatalkan, code: 201}}}
+                bukanHariIni: {value: {metadata: {message: Antrean farmasi hanya dapat diambil pada tanggal antrean poli (2026-11-06), code: 201}}}
+                belumTask5: {value: {metadata: {message: 'Pelayanan poli belum selesai, antrean farmasi belum dapat diambil', code: 201}}}
+                resepBelumAda: {value: {metadata: {message: 'Jenis resep belum tersedia, silakan hubungi farmasi', code: 201}}}
+                tanpaResep: {value: {metadata: {message: 'Pasien tidak memiliki resep, antrean farmasi tidak dapat diambil', code: 201}}}
+                sudahAmbil: {value: {metadata: {message: Kode booking sudah mengambil antrean farmasi hari ini dengan nomor 1, code: 201}}}
+                bpjsTidakTersedia: {value: {metadata: {message: 'Data antrean BPJS tidak dapat diperiksa, silakan coba lagi', code: 201}}}
+                headerKosong: {value: {metadata: {message: Header x-token dan x-username wajib diisi, code: 201}}}
+                usernameSalah: {value: {metadata: {message: Username Tidak Sesuai, code: 201}}}
+                tokenTidakValid: {value: {metadata: {message: Token Tidak Valid, code: 201}}}
+                tokenExpired: {value: {metadata: {message: Token Expired, code: 201}}}
+                tokenTidakDapatDivalidasi: {value: {metadata: {message: Token tidak dapat divalidasi, code: 201}}}
+
+  /jkn/status-antrean-farmasi:
+    post:
+      tags: [WSRS untuk BPJS]
+      summary: WSRS Service Status Antrean Farmasi
+      description: |
+        Dipanggil BPJS untuk menampilkan status antrean farmasi di Mobile JKN (item UAT 2). Antrean batal tidak
+        dihitung di `totalantrean` dan `sisaantrean`. HTTP status sama dengan `metadata.code`.
+      operationId: wsrsStatusAntreanFarmasi
+      security: [{WsrsToken: [], WsrsUsername: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kodebooking]
+              properties:
+                kodebooking: {type: string, example: 20261107INT001}
+      responses:
+        '200':
+          description: Status antrean farmasi
+          content:
+            application/json:
+              example: {response: {jenisresep: Racikan, totalantrean: 10, sisaantrean: 4, antreanpanggil: 6, keterangan: ''}, metadata: {message: Ok, code: 200}}
+        '201':
+          description: Ditolak (data atau token)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Gagal'}
+              examples:
+                kodebookingKosong: {value: {metadata: {message: Kode Booking tidak boleh kosong, code: 201}}}
+                tidakDitemukan: {value: {metadata: {message: kodebooking Tidak Ditemukan, code: 201}}}
+                belumAmbil: {value: {metadata: {message: Kode booking belum mengambil antrean farmasi, code: 201}}}
+                bpjsTidakTersedia: {value: {metadata: {message: 'Data antrean BPJS tidak dapat diperiksa, silakan coba lagi', code: 201}}}
+                tokenTidakValid: {value: {metadata: {message: Token Tidak Valid, code: 201}}}
+                tokenExpired: {value: {metadata: {message: Token Expired, code: 201}}}
+                tokenTidakDapatDivalidasi: {value: {metadata: {message: Token tidak dapat divalidasi, code: 201}}}
+
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: Kunci API internal (ANTROL_INTERNAL_API_KEY). Kunci tidak pernah ditampilkan di halaman maupun log modul.
+    WsrsToken:
+      type: apiKey
+      in: header
+      name: x-token
+      description: Token WSRS (mode lokal dari GET /jkn/auth modul; mode vendor dari Get Token Dhealth).
+    WsrsUsername:
+      type: apiKey
+      in: header
+      name: x-username
+      description: Username WSRS yang diberikan RS ke BPJS.
+  responses:
+    KunciApiSalah:
+      description: Kunci API salah, kosong, atau belum dikonfigurasi di modul
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Gagal'}
+          examples:
+            salah: {value: {metadata: {message: Kunci API tidak valid, code: 401}}}
+            belumDikonfigurasi: {value: {metadata: {message: API internal belum dikonfigurasi (ANTROL_INTERNAL_API_KEY kosong), code: 401}}}
+    IpTidakDiizinkan:
+      description: IP pemanggil tidak ada di ANTROL_INTERNAL_IP_ALLOWLIST
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Gagal'}
+          example: {metadata: {message: Alamat IP tidak diizinkan, code: 403}}
+    TerlaluBanyak:
+      description: Melebihi batas request per menit per IP (ANTROL_INTERNAL_PER_MENIT)
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Gagal'}
+          example: {metadata: {message: 'Terlalu banyak permintaan, coba lagi sebentar', code: 429}}
+  schemas:
+    Metadata:
+      type: object
+      required: [message, code]
+      properties:
+        message: {type: string, example: Ok}
+        code: {type: integer, example: 200}
+    Gagal:
+      type: object
+      required: [metadata]
+      properties:
+        metadata: {$ref: '#/components/schemas/Metadata'}
+    ResepInput:
+      type: object
+      required: [kodebooking, jenisresep]
+      properties:
+        kodebooking: {type: string, maxLength: 30, description: Kode booking antrean poli (sama dengan yang dikirim ke BPJS)}
+        jenisresep: {type: string, enum: [Racikan, Non Racikan, Tidak ada]}
+        norekammedis: {type: string, maxLength: 30, description: Dianjurkan; ditampilkan di Antrian Farmasi}
+        namapasien: {type: string, maxLength: 100, description: Dianjurkan; BPJS tidak mengirim nama pasien}
+        nomorkartu: {type: string, maxLength: 20}
+        kodepoli: {type: string, maxLength: 10}
+        tanggal: {type: string, format: date, description: 'Tanggal pelayanan (YYYY-MM-DD); default hari ini'}
+    Resep:
+      type: object
+      properties:
+        kodebooking: {type: string}
+        jenisresep: {type: string}
+        norekammedis: {type: string, nullable: true}
+        namapasien: {type: string, nullable: true}
+        nomorkartu: {type: string, nullable: true}
+        kodepoli: {type: string, nullable: true}
+        tanggal: {type: string, format: date}
+        sumber: {type: string, enum: [vendor, manual]}
+        dibatalkan: {type: boolean}
+    JawabanResep:
+      type: object
+      properties:
+        response: {$ref: '#/components/schemas/Resep'}
+        metadata: {$ref: '#/components/schemas/Metadata'}
+    AntreanFarmasi:
+      type: object
+      properties:
+        nomorantrean: {type: integer}
+        namapasien: {type: string, nullable: true, description: Null jika Dhealth belum mengirim nama}
+        norekammedis: {type: string, nullable: true}
+        kodebooking: {type: string}
+        jenisresep: {type: string, enum: [Racikan, Non Racikan]}
+        sumber: {type: string, enum: [mobile_jkn, onsite]}
+        status: {type: string, enum: [menunggu, dipanggil, selesai, batal]}
+        waktu:
+          type: object
+          properties:
+            ambil: {type: string, nullable: true, example: '09:12'}
+            dipanggil: {type: string, nullable: true}
+            selesai: {type: string, nullable: true}
+            batal: {type: string, nullable: true}
+        terkirim_bpjs: {type: boolean, nullable: true, description: Hasil Tambah Antrean Farmasi (null untuk sumber Mobile JKN)}

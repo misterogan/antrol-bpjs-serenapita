@@ -113,7 +113,7 @@
                   <button class="kecil">Selesai pelayanan</button>
                 </form>
               @endif
-              @if ($a['status'] === 'selesai' && in_array($a['jenisresep'], ['Racikan', 'Non Racikan'], true))
+              @if (config('antrol.fitur_farmasi') && $a['status'] === 'selesai' && in_array($a['jenisresep'], ['Racikan', 'Non Racikan'], true))
                 <a href="{{ route('antrol.farmasi') }}" class="tombol kecil garis">Ke farmasi</a>
               @endif
               @if (in_array($a['status'], $bisaBatal, true))

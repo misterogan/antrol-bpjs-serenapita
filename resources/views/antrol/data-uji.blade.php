@@ -25,6 +25,7 @@
     </form>
   </section>
 
+  @if (config('antrol.fitur_farmasi'))
   <section class="panel">
     <h2>Antrean farmasi hari ini</h2>
     <p class="ket">Panggil dan selesaikan antrean agar nilai antrean dipanggil &amp; sisa antrean di status antrean farmasi berubah.</p>
@@ -48,6 +49,7 @@
       </tbody>
     </table></div>
   </section>
+  @endif
 </div>
 
 <section class="panel" style="margin-top:16px">

@@ -7,7 +7,10 @@ use Illuminate\Support\Facades\Route;
 use Symfony\Component\Yaml\Yaml;
 use Tests\TestCase;
 
-/** docs/openapi.yaml valid dan mendokumentasikan semua route /jkn/internal/* serta WSRS untuk BPJS. */
+/**
+ * docs/openapi-farmasi.yaml (arsip lengkap) mendokumentasikan semua route /jkn/internal/* serta WSRS untuk BPJS;
+ * docs/openapi.yaml (yang tampil) tanpa path farmasi/resep karena antrean farmasi ditangani SIMRS vendor.
+ */
 class OpenApiTest extends TestCase
 {
     /** @var array<string, mixed> */
@@ -16,7 +19,18 @@ class OpenApiTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->spek = Yaml::parseFile(base_path('docs/openapi.yaml'));
+        $this->spek = Yaml::parseFile(base_path('docs/openapi-farmasi.yaml'));
+    }
+
+    public function test_openapi_utama_tanpa_path_farmasi_dan_resep(): void
+    {
+        $spek = Yaml::parseFile(base_path('docs/openapi.yaml'));
+
+        $this->assertSame(['/jkn/internal/poli-fingerprint', '/jkn/internal/poli-fingerprint/{kodepoli}', '/jkn/internal/peserta-fingerprint'], array_keys($spek['paths']));
+        $this->assertSame(['API Internal untuk Dhealth'], array_column($spek['tags'], 'name'));
+        foreach ($spek['paths'] as $path => $operasi) {
+            $this->assertSame(['API Internal untuk Dhealth'], $operasi['get']['tags'], $path);
+        }
     }
 
     public function test_spesifikasi_openapi_3_valid_dengan_dua_tag(): void

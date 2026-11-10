@@ -11,6 +11,7 @@ use App\Http\Controllers\Antrol\PendaftaranFingerprintController;
 use App\Http\Controllers\Antrol\PoliController;
 use App\Http\Controllers\Antrol\WsbpjsController;
 use App\Http\Middleware\AntrolAlatSimulasi;
+use App\Http\Middleware\AntrolFiturFarmasi;
 use Illuminate\Support\Facades\Route;
 
 // Tambahkan middleware login (mis. 'auth') sesuai aplikasi Anda.
@@ -41,23 +42,27 @@ Route::prefix('antrol')->name('antrol.')->middleware([])->group(function () {
         Route::get('data-uji', [DataUjiController::class, 'index'])->name('data-uji');
         Route::post('data-uji/poli', [DataUjiController::class, 'simpanPoli'])->name('data-uji.poli');
         Route::post('data-uji/poli/{poli}', [DataUjiController::class, 'aksiPoli'])->name('data-uji.poli.aksi');
-        Route::post('data-uji/farmasi/{farmasi}', [DataUjiController::class, 'aksiFarmasi'])->name('data-uji.farmasi.aksi');
+        Route::post('data-uji/farmasi/{farmasi}', [DataUjiController::class, 'aksiFarmasi'])
+            ->middleware(AntrolFiturFarmasi::class)
+            ->name('data-uji.farmasi.aksi');
     });
 
-    // Antrian Farmasi
-    Route::get('farmasi', [FarmasiController::class, 'index'])->name('farmasi');
-    Route::get('farmasi/data', [FarmasiController::class, 'data'])->name('farmasi.data');
-    Route::post('farmasi/ambil', [FarmasiController::class, 'ambil'])->name('farmasi.ambil');
-    Route::post('farmasi/buat', [FarmasiController::class, 'buat'])->name('farmasi.buat');
-    Route::get('farmasi/resep/{kodebooking}', [FarmasiController::class, 'cariResep'])->name('farmasi.resep');
-    Route::post('farmasi/{kodebooking}/kirim-ulang', [FarmasiController::class, 'kirimUlang'])->name('farmasi.kirim-ulang');
-    Route::post('farmasi/{kodebooking}/cek-status', [FarmasiController::class, 'cekStatus'])->name('farmasi.cek-status');
-    Route::post('farmasi/{kodebooking}/kirim-task/{taskid}', [FarmasiController::class, 'kirimTask'])
-        ->whereIn('taskid', ['6', '7'])
-        ->name('farmasi.kirim-task');
-    Route::post('farmasi/{kodebooking}/{aksi}', [FarmasiController::class, 'aksi'])
-        ->whereIn('aksi', ['panggil', 'selesai', 'batal'])
-        ->name('farmasi.aksi');
+    // Antrian Farmasi (ANTROL_FITUR_FARMASI=false: 404, ditangani SIMRS vendor)
+    Route::middleware(AntrolFiturFarmasi::class)->group(function () {
+        Route::get('farmasi', [FarmasiController::class, 'index'])->name('farmasi');
+        Route::get('farmasi/data', [FarmasiController::class, 'data'])->name('farmasi.data');
+        Route::post('farmasi/ambil', [FarmasiController::class, 'ambil'])->name('farmasi.ambil');
+        Route::post('farmasi/buat', [FarmasiController::class, 'buat'])->name('farmasi.buat');
+        Route::get('farmasi/resep/{kodebooking}', [FarmasiController::class, 'cariResep'])->name('farmasi.resep');
+        Route::post('farmasi/{kodebooking}/kirim-ulang', [FarmasiController::class, 'kirimUlang'])->name('farmasi.kirim-ulang');
+        Route::post('farmasi/{kodebooking}/cek-status', [FarmasiController::class, 'cekStatus'])->name('farmasi.cek-status');
+        Route::post('farmasi/{kodebooking}/kirim-task/{taskid}', [FarmasiController::class, 'kirimTask'])
+            ->whereIn('taskid', ['6', '7'])
+            ->name('farmasi.kirim-task');
+        Route::post('farmasi/{kodebooking}/{aksi}', [FarmasiController::class, 'aksi'])
+            ->whereIn('aksi', ['panggil', 'selesai', 'batal'])
+            ->name('farmasi.aksi');
+    });
 
     // Monitoring Antrean
     Route::get('monitoring', [MonitoringController::class, 'index'])->name('monitoring');
@@ -77,7 +82,7 @@ Route::prefix('antrol')->name('antrol.')->middleware([])->group(function () {
     Route::get('uji-service', [WsbpjsController::class, 'index'])->name('wsbpjs');
     Route::post('poli-fingerprint', [WsbpjsController::class, 'poliFingerprint'])->name('poli-fp');
     Route::post('pasien-fingerprint', [WsbpjsController::class, 'pasienFingerprint'])->name('pasien-fp');
-    Route::post('tambah-farmasi', [WsbpjsController::class, 'tambahFarmasi'])->name('tambah-farmasi');
+    Route::post('tambah-farmasi', [WsbpjsController::class, 'tambahFarmasi'])->middleware(AntrolFiturFarmasi::class)->name('tambah-farmasi');
     Route::post('belum-dilayani', [WsbpjsController::class, 'belumDilayani'])->name('belum-dilayani');
     Route::post('antrean-kodebooking', [WsbpjsController::class, 'antreanPerKodeBooking'])->name('antrean-kodebooking');
     Route::post('list-task', [WsbpjsController::class, 'listWaktuTask'])->name('list-task');

@@ -173,6 +173,14 @@ return [
     */
     'tampilkan_alat_simulasi' => (bool) env('ANTROL_TAMPILKAN_ALAT_SIMULASI', false),
 
+    /*
+    | Fitur antrean farmasi di modul ini (halaman Antrian Farmasi, WSRS Ambil/Status Antrean Farmasi,
+    | API internal resep & antrean farmasi, Tambah Antrean Farmasi, task ID 6/7).
+    | false (default): antrean farmasi ditangani SIMRS vendor; menu disembunyikan dan route menjawab 404.
+    | true : fitur farmasi modul ini aktif kembali (kode, migration, dan tabel tidak dihapus).
+    */
+    'fitur_farmasi' => (bool) env('ANTROL_FITUR_FARMASI', false),
+
     // Nilai metadata.code yang berarti sukses. Log BPJS development menunjukkan
     // Referensi Poli Fingerprint menjawab code 1 ("OK"), sedangkan service lain 200.
     'kode_sukses' => [200, 1], // VERIFIKASI DENGAN KATALOG

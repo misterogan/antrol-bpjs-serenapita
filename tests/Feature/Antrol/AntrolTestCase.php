@@ -33,6 +33,8 @@ abstract class AntrolTestCase extends TestCase
             'antrol.mode_simulasi' => false,
             // Test lama memakai alat simulasi; AlatSimulasiTest menguji kondisi disembunyikan.
             'antrol.tampilkan_alat_simulasi' => true,
+            // Test lama menguji fitur farmasi; FiturFarmasiNonaktifTest menguji kondisi disembunyikan.
+            'antrol.fitur_farmasi' => true,
             // Test tidak bergantung pada .env lokal; test mode vendor menyalakannya sendiri.
             'antrol.wsrs.token_mode' => 'lokal',
             'antrol.wsrs.vendor.base_url' => null,

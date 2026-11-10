@@ -46,6 +46,7 @@
     </form>
   </section>
 
+  @if (config('antrol.fitur_farmasi'))
   <section class="panel">
     <h2>Tambah Antrean Farmasi</h2>
     <p class="ket">Kosongkan nomor antrean agar nomor diambil otomatis dari antrean farmasi RS (dengan validasi task ID 5 &amp; jenis resep), lalu dikirim ke BPJS.</p>
@@ -61,6 +62,7 @@
       <button type="submit">Tambah antrean</button>
     </form>
   </section>
+  @endif
 
   <section class="panel">
     <h2>Antrean Belum Dilayani</h2>

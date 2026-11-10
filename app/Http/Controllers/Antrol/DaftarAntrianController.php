@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Antrol;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\AntrolFiturFarmasi;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
@@ -16,7 +17,7 @@ class DaftarAntrianController extends Controller
     {
         $kartu = [
             ['judul' => ['Antrian Pendaftaran', 'Onsite BPJS'], 'ikon' => 'pendaftaran', 'tujuan' => route('antrol.pendaftaran.poli-fp'), 'tombol' => 'Ambil Antrian'],
-            ['judul' => ['Antrian', 'Farmasi'], 'ikon' => 'farmasi', 'tujuan' => route('antrol.farmasi'), 'tombol' => 'Ambil Antrian'],
+            ...(AntrolFiturFarmasi::aktif() ? [['judul' => ['Antrian', 'Farmasi'], 'ikon' => 'farmasi', 'tujuan' => route('antrol.farmasi'), 'tombol' => 'Ambil Antrian']] : []),
             ['judul' => ['Monitoring', 'Antrean'], 'ikon' => 'monitoring', 'tujuan' => route('antrol.monitoring'), 'tombol' => 'Buka'],
             ['judul' => ['Log', 'Bridging'], 'ikon' => 'log', 'tujuan' => route('antrol.log'), 'tombol' => 'Buka'],
             ['judul' => ['Alat', 'Uji'], 'ikon' => 'alat', 'tujuan' => route('antrol.alat-uji'), 'tombol' => 'Buka'],
