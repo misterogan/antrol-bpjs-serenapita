@@ -1,0 +1,11 @@
+﻿name: Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency: deploy-antrol
+jobs:
+  deploy:
+    runs-on: [self-hosted, antrol]
+    steps:
+      - run: /usr/local/bin/deploy-antrol.sh
