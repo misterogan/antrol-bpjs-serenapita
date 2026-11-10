@@ -28,13 +28,13 @@ class TampilanIstilahTest extends AntrolTestCase
         $this->assertDoesNotMatchRegularExpression('/vendor|dhealth|enigma/i', $teks);
     }
 
-    public function test_label_mode_token_di_header(): void
+    public function test_label_token_dan_sumber_data_tidak_tampil_di_header(): void
     {
         config(['antrol.wsrs.token_mode' => 'vendor']);
-        $this->get(route('antrol.beranda'))->assertSee('Token WSRS: validasi token SIMRS')->assertSee('Modul Antrean Online');
+        $this->get(route('antrol.beranda'))->assertDontSee('Token WSRS')->assertDontSee('Sumber data')->assertSee('Modul Antrean Online');
 
         config(['antrol.wsrs.token_mode' => 'lokal']);
-        $this->get(route('antrol.alat-uji'))->assertSee('Token WSRS: token modul (pengujian)');
+        $this->get(route('antrol.alat-uji'))->assertDontSee('Token WSRS')->assertDontSee('Sumber data');
     }
 
     public function test_filter_dan_label_arah_di_log(): void

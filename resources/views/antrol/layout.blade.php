@@ -144,8 +144,6 @@ a{color:var(--pinus)}
   $logoRs = (string) config('antrol.logo');
   $adaLogo = $logoRs !== '' && is_file(public_path($logoRs));
   $bpjsDev = str_contains(strtolower((string) config('antrol.bpjs.base_url')), 'dev');
-  $sumberData = ['lokal' => 'lokal (data uji)', 'bpjs' => 'BPJS + resep SIMRS'][config('antrol.sumber_data')] ?? (string) config('antrol.sumber_data');
-  $modeToken = ['vendor' => 'validasi token SIMRS', 'lokal' => 'token modul (pengujian)'][config('antrol.wsrs.token_mode')] ?? (string) config('antrol.wsrs.token_mode');
 @endphp
 <header class="kop">
   <div class="kop-dalam">
@@ -169,8 +167,6 @@ a{color:var(--pinus)}
       <div class="kop-bawah">
         <div class="kop-label" aria-label="Mode modul">
           <span class="label-mode {{ $bpjsDev ? 'dev' : 'prod' }}">BPJS {{ $bpjsDev ? 'Development' : 'Production' }}</span>
-          <span class="label-mode">Token WSRS: {{ $modeToken }}</span>
-          <span class="label-mode">Sumber data: {{ $sumberData }}</span>
           @if (\App\Services\Antrol\PelayananService::alatSimulasi())
             <span class="label-simulasi" title="Pendaftaran (simulasi), Poli (simulasi), dan Data uji ditampilkan (ANTROL_TAMPILKAN_ALAT_SIMULASI=true)">ALAT SIMULASI AKTIF</span>
           @endif
