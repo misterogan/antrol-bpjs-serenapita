@@ -1,0 +1,109 @@
+{
+  "info": {
+    "name": "WSRS Antrean Farmasi (UAT)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "WSRS antrean farmasi (item UAT 1 dan 2). base_url = https://domain-rs/jkn. Mode token lokal (ANTROL_WSRS_TOKEN_MODE=lokal): jalankan '1. Get Token' ke /jkn/auth modul. Mode token vendor: /jkn/auth modul menjawab 404; ambil token dari Get Token SIMRS vendor lalu isi variabel token secara manual."
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://domain-rs/jkn"
+    },
+    {
+      "key": "username",
+      "value": "isi_username_wsrs"
+    },
+    {
+      "key": "password",
+      "value": "isi_password_wsrs"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "kodebooking",
+      "value": "isi_kode_booking_uji"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Get Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const j = pm.response.json();",
+              "if (j.response && j.response.token) { pm.collectionVariables.set('token', j.response.token); }"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "x-username",
+            "value": "{{username}}"
+          },
+          {
+            "key": "x-password",
+            "value": "{{password}}"
+          }
+        ],
+        "url": "{{base_url}}/auth"
+      }
+    },
+    {
+      "name": "2. Ambil Antrean Farmasi",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "x-token",
+            "value": "{{token}}"
+          },
+          {
+            "key": "x-username",
+            "value": "{{username}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"kodebooking\": \"{{kodebooking}}\"\n}"
+        },
+        "url": "{{base_url}}/ambil-antrean-farmasi"
+      }
+    },
+    {
+      "name": "3. Status Antrean Farmasi",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "x-token",
+            "value": "{{token}}"
+          },
+          {
+            "key": "x-username",
+            "value": "{{username}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"kodebooking\": \"{{kodebooking}}\"\n}"
+        },
+        "url": "{{base_url}}/status-antrean-farmasi"
+      }
+    }
+  ]
+}

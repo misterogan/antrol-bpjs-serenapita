@@ -1,0 +1,57 @@
+{
+  "info": {
+    "name": "API Internal Modul Antrean untuk SIMRS Vendor",
+    "description": "Endpoint /jkn/internal/* modul antrean RSU SERENAPITA. Isi variabel base_url (alamat LAN modul) dan api_key (ANTROL_INTERNAL_API_KEY). Dokumentasi lengkap: /antrol/api-docs atau docs/openapi.yaml.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {"key": "key", "value": "x-api-key", "type": "string"},
+      {"key": "value", "value": "{{api_key}}", "type": "string"},
+      {"key": "in", "value": "header", "type": "string"}
+    ]
+  },
+  "variable": [
+    {"key": "base_url", "value": "http://alamat-lan-modul"},
+    {"key": "api_key", "value": "isi_kunci_api_internal"},
+    {"key": "kodebooking", "value": "isi_kode_booking"},
+    {"key": "kodepoli", "value": "INT"},
+    {"key": "tanggal", "value": "2026-11-07"}
+  ],
+  "item": [
+    {
+      "name": "1. Kirim resep",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n    \"kodebooking\": \"{{kodebooking}}\",\n    \"jenisresep\": \"Racikan\",\n    \"norekammedis\": \"000101\",\n    \"namapasien\": \"BUDI SANTOSO\",\n    \"nomorkartu\": \"0001234567890\",\n    \"kodepoli\": \"{{kodepoli}}\",\n    \"tanggal\": \"{{tanggal}}\"\n}"},
+        "url": "{{base_url}}/jkn/internal/resep"
+      }
+    },
+    {
+      "name": "2. Batalkan resep",
+      "request": {"method": "POST", "header": [], "url": "{{base_url}}/jkn/internal/resep/{{kodebooking}}/batal"}
+    },
+    {
+      "name": "3. Daftar poli fingerprint",
+      "request": {"method": "GET", "header": [], "url": "{{base_url}}/jkn/internal/poli-fingerprint"}
+    },
+    {
+      "name": "4. Status fingerprint satu poli",
+      "request": {"method": "GET", "header": [], "url": "{{base_url}}/jkn/internal/poli-fingerprint/{{kodepoli}}"}
+    },
+    {
+      "name": "5. Referensi pasien fingerprint",
+      "request": {"method": "GET", "header": [], "url": "{{base_url}}/jkn/internal/peserta-fingerprint?jenis=noka&nomor=0001234567890"}
+    },
+    {
+      "name": "6. Daftar antrean farmasi",
+      "request": {"method": "GET", "header": [], "url": "{{base_url}}/jkn/internal/antrean-farmasi?tanggal={{tanggal}}"}
+    },
+    {
+      "name": "7. Detail antrean farmasi",
+      "request": {"method": "GET", "header": [], "url": "{{base_url}}/jkn/internal/antrean-farmasi/{{kodebooking}}"}
+    }
+  ]
+}
